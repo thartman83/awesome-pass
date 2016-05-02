@@ -181,7 +181,10 @@ function pass:generate_pass_menu ()
       parse_pass_list(remove_blanks(map(function (s)
                                       return s:gsub(esc(pass.password_store_dir),"")
                                         end,
-                                       pass_lines)))   
+                                       pass_lines)))
+   return awful.menu({
+         theme = { width = 150, },
+         items = pass_table})
 end
 
 function pass:widget()
@@ -189,7 +192,7 @@ function pass:widget()
    w:buttons(awful.util.table.join(
                 awful.button({ }, 1, function ()
                       -- if the menu is currently active don't regenerate
-                      if not w["pass_menu"] or w.pass_menu.visible == false then
+                      if not w["pass_menu"] or w.pass_menu.wibox.visible == false then
                          w.pass_menu = pass:generate_pass_menu()
                       end
                       w.pass_menu:toggle()
