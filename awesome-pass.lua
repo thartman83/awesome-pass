@@ -16,13 +16,13 @@
 local awful = require('awful')
 local pass = {}
 
-pass.password_store_dir = "home" .. awful.util.pread("whoami") .. ".password-store/"
+pass.user = awful.util.pread("whoami"):gsub("\n","")
+pass.password_store_dir = "/home/" .. pass.user .. "/.password-store/"
 pass.tree_cmd = "tree"
 pass.tree_cmd_args = "--noreport -F -i -f"
 pass.pass_cmd = "/usr/bin/pass"
 pass.pass_show_args = "-c"
-pass.pass_icon = awful.util.geticonpath("pass", {"png"},
-                                        awful.util.getconf("config"))
+pass.pass_icon = ""
 
 local function map(func, arr)
    local retval = {}
@@ -50,6 +50,21 @@ local function split(str, delim, noblanks)
    end
 end
 
+local function esc(x)
+   return (x:gsub('%%', '%%%%')
+            :gsub('^%^', '%%^')
+            :gsub('%$$', '%%$')
+            :gsub('%(', '%%(')
+            :gsub('%)', '%%)')
+            :gsub('%.', '%%.')
+            :gsub('%[', '%%[')
+            :gsub('%]', '%%]')
+            :gsub('%*', '%%*')
+            :gsub('%+', '%%+')
+            :gsub('%-', '%%-')
+            :gsub('%?', '%%?'))
+end
+
 local function remove_blanks(t)
    local retval = {}
    for _, s in ipairs(t) do
@@ -63,7 +78,7 @@ end
 local function generate_pass_show_func (dir, name)
    return function ()
       awful.util.spawn(pass.pass_cmd .. " show " ..
-                       pass.pass_cmd_args .. " " ..
+                       pass.pass_show_args .. " " ..
                        dir .. "/" .. name)
    end
 end
@@ -82,7 +97,7 @@ local function parse_pass_list (pass_list)
             table.insert(spot, { name, generate_pass_show_func (dir, name) } )
          else
             _, _, name = string.find(s, "(.-).gpg$")
-            table.insert(retval, {name, generate_pass_show_func (dir, name) } )
+            table.insert(retval, {name, generate_pass_show_func ("", name) } )
          end
       else
          for _, part in pairs(remove_blanks(split(s, "/", t))) do
@@ -93,26 +108,41 @@ local function parse_pass_list (pass_list)
          end
       end
    end
-   
+
+--   print_r(retval)
+
    return retval
 end
 
-function pass:generate_pass_menu ()   
-   local pass_raw = awful.util.pread(tree_cmd .. " " .. tree_cmd_args)
-   local pass_table =
-   remove_blanks(map(function (s) s:gsub(pass.password_store_dir,"") end,
-                    lines(pass_raw)))
+function pass:generate_pass_menu ()
+   local pass_raw = awful.util.pread(pass.tree_cmd .. " " .. pass.tree_cmd_args ..
+                                        " " .. pass.password_store_dir)
+   local pass_lines = lines(pass_raw)
+   table.remove(pass_lines,1)
+   local clean_lines = map(function (s)
+         return s:gsub(esc(pass.password_store_dir),"")
+                           end,
+      pass_lines)
+   
+   local pass_table = parse_pass_list(clean_lines)
 
-   return awful.menu(parse_pass_list(pass_table, pass.password_store_dir))
+   return awful.menu(pass_table)
 end
 
-pass.widget = awful.widget.button({ image = pass.pass_icon })
-pass.widget:buttons(awful.util.table.join(
-                       awful.button({ }, 1, function ()
-                             local pass_menu = pass:generate_pass_menu()
-                             pass_menu:toggle()
-                       end)
-))
-
+function pass:widget()
+   local w = awful.widget.button({ image = pass.pass_icon,
+                                   theme = {width = 300}})
+   w:buttons(awful.util.table.join(
+                awful.button({ }, 1, function ()
+                      -- if the menu doesn't exist create it
+                      
+                      -- if the menu is currently active don't regenerate
+                      if not w["pass_menu"] or w.pass_menu.visible == false then
+                         w.pass_menu = pass:generate_pass_menu()
+                      end
+                      w.pass_menu:toggle()
+   end)))
+   return w
+end
 
 return pass
