@@ -13,49 +13,17 @@
 -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 -- GNU General Public License for more details.
 
+local setmetatable = setmetatable
 local awful = require('awful')
-local pass = {}
+local beautiful = require("beautiful")
+local object = require("gears.object")
+local pass = { mt = {} }
 
-pass.user = awful.util.pread("whoami"):gsub("\n","")
-pass.password_store_dir = "/home/" .. pass.user .. "/.password-store/"
-pass.tree_cmd = "tree"
-pass.tree_cmd_args = "--noreport -F -i -f"
-pass.pass_cmd = "/usr/bin/pass"
-pass.pass_show_args = "-c"
-pass.pass_icon = ""
-
-function print_r ( t )  
-    local print_r_cache={}
-    local function sub_print_r(t,indent)
-        if (print_r_cache[tostring(t)]) then
-            print(indent.."*"..tostring(t))
-        else
-            print_r_cache[tostring(t)]=true
-            if (type(t)=="table") then
-                for pos,val in pairs(t) do
-                    if (type(val)=="table") then
-                        print(indent.."["..pos.."] => "..tostring(t).." {")
-                        sub_print_r(val,indent..string.rep(" ",string.len(pos)+8))
-                        print(indent..string.rep(" ",string.len(pos)+6).."}")
-                    elseif (type(val)=="string") then
-                        print(indent.."["..pos..'] => "'..val..'"')
-                    else
-                        print(indent.."["..pos.."] => "..tostring(val))
-                    end
-                end
-            else
-                print(indent..tostring(t))
-            end
-        end
+local table_update = function (t, set)
+    for k, v in pairs(set) do
+        t[k] = v
     end
-    if (type(t)=="table") then
-        print(tostring(t).." {")
-        sub_print_r(t,"  ")
-        print("}")
-    else
-        sub_print_r(t,"  ")
-    end
-    print()
+    return t
 end
 
 local function map(func, arr)
@@ -88,19 +56,19 @@ local function split(str, delim, noblanks)
    end
 end
 
-local function esc(x)
+local function esc_string(x)
    return (x:gsub('%%', '%%%%')
-            :gsub('^%^', '%%^')
-            :gsub('%$$', '%%$')
-            :gsub('%(', '%%(')
-            :gsub('%)', '%%)')
-            :gsub('%.', '%%.')
-            :gsub('%[', '%%[')
-            :gsub('%]', '%%]')
-            :gsub('%*', '%%*')
-            :gsub('%+', '%%+')
-            :gsub('%-', '%%-')
-            :gsub('%?', '%%?'))
+              :gsub('^%^', '%%^')
+              :gsub('%$$', '%%$')
+              :gsub('%(', '%%(')
+              :gsub('%)', '%%)')
+              :gsub('%.', '%%.')
+              :gsub('%[', '%%[')
+              :gsub('%]', '%%]')
+              :gsub('%*', '%%*')
+              :gsub('%+', '%%+')
+              :gsub('%-', '%%-')
+              :gsub('%?', '%%?'))
 end
 
 local function remove_blanks(t)
@@ -172,32 +140,72 @@ local function parse_pass_list (pass_list)
    return retval
 end
 
-function pass:generate_pass_menu ()
-   local pass_raw = awful.util.pread(pass.tree_cmd .. " " .. pass.tree_cmd_args ..
-                                        " " .. pass.password_store_dir)
+local function generate_pass_show_table (_pass)
+   local pass_raw = awful.util.pread(_pass.tree_cmd .. " " .. _pass.tree_cmd_args ..
+                                        " " .. _pass.pass_store)
    local pass_lines = lines(pass_raw)
    table.remove(pass_lines,1)
    local pass_table =
       parse_pass_list(remove_blanks(map(function (s)
-                                      return s:gsub(esc(pass.password_store_dir),"")
+                                      return s:gsub(esc(_pass.pass_store),"")
                                         end,
                                        pass_lines)))
-   return awful.menu({
-         theme = { width = 150, },
-         items = pass_table})
+   return pass_table
 end
 
-function pass:widget()
-   local w = awful.widget.button({ image = pass.pass_icon, })
-   w:buttons(awful.util.table.join(
-                awful.button({ }, 1, function ()
-                      -- if the menu is currently active don't regenerate
-                      if not w["pass_menu"] or w.pass_menu.wibox.visible == false then
-                         w.pass_menu = pass:generate_pass_menu()
-                      end
-                      w.pass_menu:toggle()
-   end)))
-   return w
+function pass:toogle_pass_show()
+   -- regenerate the menu if it doesn't exist or if it isn't visible
+   if not self.show_menu or self.show_menu.wibox.visible == false then
+      local pass_table = generate_pass_table()
+      self.show_menu = awful.menu({            
+            theme = { self.theme.menu, },
+            items = pass_table}, self.widget)
+   end
+   self.show_menu:toggle()
 end
 
-return pass
+function pass.new(args)
+   args = args or {}
+   args.theme = args.theme or {}
+   args.theme.menu = args.theme.menu or {}
+   args.theme.menu.width = args.theme.menu.width or 150
+   
+   local default_image = awful.util.geticonpath("pass", {".png","gif"},
+                                                {awful.util.getdir("config") ..
+                                                    "awesome-pass/icons",
+                                                 "/usr/share/pixmaps/"})
+   local homedir = "/home/" .. os.getenv("USER") .. "/"
+   
+   local _pass = table_update(object(), {
+                                 toggle_pass_show = pass.toggle_pass_show,
+                                 image = args.theme.image or default_image,
+                                 pass_store = homedir .. "/.password-store/",
+                                 tree_cmd = "/usr/bin/tree",
+                                 tree_cmd_args = "--noreport -F -i -f",
+                                 pass_cmd = "/usr/bin/pass",
+                                 pass_show_args = "-c",                                 
+                                 theme = args.theme,
+                                 show_menu = {},
+                                 pass_menu = {},
+   })
+
+   _pass.widget = awful.widget.button({ image = _pass.image, })
+   _pass.widget:buttons(awful.util.table.join(
+--                            button({}, 3,
+--                               function ()
+--                                  self:toggle_pass_menu()
+--                            end ),
+                           button({}, 1,
+                              function () 
+                                 self:toggle_pass_show()
+                           end)
+   ))
+   
+   return _pass
+end
+
+function pass.mt:__call(...)
+   return pass.new(...)
+end
+
+return setmetatable(pass,pass.mt)

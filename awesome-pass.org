@@ -1,0 +1,18 @@
+#+TITLE: Awesome Pass
+#+AUTHOR: Tom Hartman
+
+* Overview
+Awesome pass is an widget for the Awesome window manager designed to
+interact with the Pass password manager.
+
+* Installation
+To add the widget to your awesome configuration, clone the repository
+and add the following line to your rc.lua file.
+
+#+BEGIN_SRC lua
+pass = dofile('/path/to/repos/awesome-pass.lua')
+#+END_SRC
+
+* Functions and Customizations
+** Widget
+
