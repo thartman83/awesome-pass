@@ -24,6 +24,40 @@ pass.pass_cmd = "/usr/bin/pass"
 pass.pass_show_args = "-c"
 pass.pass_icon = ""
 
+function print_r ( t )  
+    local print_r_cache={}
+    local function sub_print_r(t,indent)
+        if (print_r_cache[tostring(t)]) then
+            print(indent.."*"..tostring(t))
+        else
+            print_r_cache[tostring(t)]=true
+            if (type(t)=="table") then
+                for pos,val in pairs(t) do
+                    if (type(val)=="table") then
+                        print(indent.."["..pos.."] => "..tostring(t).." {")
+                        sub_print_r(val,indent..string.rep(" ",string.len(pos)+8))
+                        print(indent..string.rep(" ",string.len(pos)+6).."}")
+                    elseif (type(val)=="string") then
+                        print(indent.."["..pos..'] => "'..val..'"')
+                    else
+                        print(indent.."["..pos.."] => "..tostring(val))
+                    end
+                end
+            else
+                print(indent..tostring(t))
+            end
+        end
+    end
+    if (type(t)=="table") then
+        print(tostring(t).." {")
+        sub_print_r(t,"  ")
+        print("}")
+    else
+        sub_print_r(t,"  ")
+    end
+    print()
+end
+
 local function map(func, arr)
    local retval = {}
    for i,v in ipairs(arr) do
@@ -41,6 +75,10 @@ end
 
 local function split(str, delim, noblanks)   
    local t = {}
+   if str == nil then
+      return t
+   end
+   
    local function helper(part) table.insert(t, part) return "" end
    helper((str:gsub("(.-)" .. delim, helper)))
    if noblanks then
@@ -80,36 +118,56 @@ local function generate_pass_show_func (dir, name)
       awful.util.spawn(pass.pass_cmd .. " show " ..
                        pass.pass_show_args .. " " ..
                        dir .. "/" .. name)
+   end   
+end
+
+local function find_sub_menu(t, dirs)   
+   local dirs = dirs
+
+   if next(dirs) == nil then
+      return t
    end
+   
+   local dir = table.remove(dirs, 1)
+   
+   for i,v in ipairs(t) do
+      if v[1] == dir then
+         if table.getn(dirs) == 0 then
+            return v[2]
+         else
+            return find_sub_menu(v[2], dirs)
+         end
+      end
+   end
+   
+   return nil
+end
+
+local function create_sub_menu(t, dirs)
+   local dirs = dirs
+   if table.getn(dirs) == 0 then
+      return t
+   end
+   local dir = table.remove(dirs, 1)
+   local submenu = find_sub_menu(t, { dir } )
+   if submenu == nil then
+      table.insert(t, { dir, {} })
+      submenu = find_sub_menu(t, { dir })
+   end
+   create_sub_menu(submenu, dirs)
 end
 
 local function parse_pass_list (pass_list)
    local retval = {}
-   
    for _, s in pairs(pass_list) do
-      local spot = retval
       if string.find(s, "\.gpg$") then
-         _, _, dir, name = string.find(s, "(.*/)(.-).gpg$")
-         if dir ~= nil then
-            for _, part in pairs(remove_blanks(split(dir, "/", t))) do
-               spot = spot[part]
-            end
-            table.insert(spot, { name, generate_pass_show_func (dir, name) } )
-         else
-            _, _, name = string.find(s, "(.-).gpg$")
-            table.insert(retval, {name, generate_pass_show_func ("", name) } )
-         end
+         local _, _, dir, name = string.find(s, "(.*/)(.-).gpg$")
+         local submenu = find_sub_menu(retval, remove_blanks(split(dir,"/")))
+         table.insert(submenu, { name, generate_pass_show_func (dir, name) })
       else
-         for _, part in pairs(remove_blanks(split(s, "/", t))) do
-            if spot[part] == nil then
-               spot[part] = {}
-            end
-            spot = spot[part]
-         end
+         create_sub_menu(retval, remove_blanks(split(s,"/")))
       end
    end
-
---   print_r(retval)
 
    return retval
 end
@@ -119,23 +177,17 @@ function pass:generate_pass_menu ()
                                         " " .. pass.password_store_dir)
    local pass_lines = lines(pass_raw)
    table.remove(pass_lines,1)
-   local clean_lines = map(function (s)
-         return s:gsub(esc(pass.password_store_dir),"")
-                           end,
-      pass_lines)
-   
-   local pass_table = parse_pass_list(clean_lines)
-
-   return awful.menu(pass_table)
+   local pass_table =
+      parse_pass_list(remove_blanks(map(function (s)
+                                      return s:gsub(esc(pass.password_store_dir),"")
+                                        end,
+                                       pass_lines)))   
 end
 
 function pass:widget()
-   local w = awful.widget.button({ image = pass.pass_icon,
-                                   theme = {width = 300}})
+   local w = awful.widget.button({ image = pass.pass_icon, })
    w:buttons(awful.util.table.join(
                 awful.button({ }, 1, function ()
-                      -- if the menu doesn't exist create it
-                      
                       -- if the menu is currently active don't regenerate
                       if not w["pass_menu"] or w.pass_menu.visible == false then
                          w.pass_menu = pass:generate_pass_menu()
