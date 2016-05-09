@@ -1,5 +1,5 @@
 # awesome-pass
-Awesome password widget
+Pass widget for the Awesome Window Manager
 
 Installation:
 - Clone the git repository to the awesome config directory (normally ~/.config/awesome)
@@ -11,4 +11,4 @@ Installation:
 - Enjoy!
 
 Todo:
-Write better documentation
+- Write better documentation
