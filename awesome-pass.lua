@@ -17,6 +17,7 @@ local setmetatable = setmetatable
 local awful = require('awful')
 local beautiful = require("beautiful")
 local button = require("awful.widget.button")
+local wibox = require('wibox')
 
 -- pass object
 local pass = { mt = {} }
@@ -167,18 +168,14 @@ function pass:toggle_pass_show()
    self.show_menu:toggle()
 end
 
-function pass.new(args)
+function pass.new(base, args)
    args = args or {}
    args.theme = args.theme or {}
    args.theme.menu = args.theme.menu or {}
    args.theme.menu.width = args.theme.menu.width or 150
    
-   local iconpath = awful.util.getdir("config") .. "/awesome-pass/icons/"
-   local default_image = awful.util.geticonpath("pass", {"png","gif"},
-                                                { iconpath,
-                                                  "/usr/share/pixmaps/"})
    local homedir = "/home/" .. os.getenv("USER") .. "/"
-   local _pass = table_update(button({ image = default_image }),
+   local _pass = table_update(base,
                               {
                                  toggle_pass_show = pass.toggle_pass_show,
                                  pass_store = homedir .. "/.password-store/",
