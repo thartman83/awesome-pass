@@ -1,0 +1,55 @@
+#+TITLE: awesome-pass
+
+* Installation
+Clone this repository and either copy or link the awesome-pass.lua
+file to your awesome config directory (usually ~/.config/awesome/
+
+#+BEGIN_SRC shell
+cd ~/src/
+git clone https://github.com/thartman83/awesome-pass.git
+cd ~/.config/awesome
+ln -s ~/src/awesome-pass/awesome-pass.lua .
+#+END_SRC
+
+Awesome pass takes a widget as its first argument and constructs the
+pass widget around it.
+
+#+BEGIN_SRC lua
+local pass = require ('awesome-pass')
+local awful = require ('awful')
+local base = awful.widget.button( image = "/path/to/image.png" )
+local pass-widget = pass(base)
+#+END_SRC
+
+* Functions
+
+** new (base, args)
+   Create a new pass widget. When clicked the pass menu will appear.
+*** Parameters
+- base: The base widget that will have the pass functions constructed around it
+- args: Widget arguments. "theme" is theme of the widget to display
+
+*** Returns:
+A new pass widget constructed around the base argument
+
+** toggle_pass_show()
+Show or hide the 'pass show' menu. This menu is generated everytime
+this function is called in order to find any new passwords that may
+have been entered since the last time the function was called.
+
+*** Parameters:
+None
+*** Returns:
+None
+
+* Customizations
+You can bind the toggle_pass_show() function to any key to access the
+'pass show' menu from the keyboard.
+
+#+BEGIN_SRC lua
+local pass = pass(base)
+...
+pass_key = awful.key({ modkey, }, "p", function () pass:toggle_pass_show() end)
+#+END_SRC
+
+Currently the menu will popup where the mouse is.
