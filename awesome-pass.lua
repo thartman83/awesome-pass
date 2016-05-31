@@ -19,6 +19,7 @@ local awful = require('awful')
 local beautiful = require("beautiful")
 local button = require("awful.widget.button")
 local wibox = require('wibox')
+local naughty = require("naughty")
 
 
 local pass = { mt = {} }
@@ -90,7 +91,7 @@ end
 
 --- Private Pass functions
 -- {{{
-local function generate_pass_show_func (_pass, dir, name)
+local function build_pass_show_func (_pass, dir, name)
    return function ()
       awful.util.spawn(_pass.pass_cmd .. " show " ..
                        _pass.pass_show_args .. " " ..
@@ -140,7 +141,7 @@ local function parse_pass_list (_pass, pass_list)
       if string.find(s, "\.gpg$") then
          local _, _, dir, name = string.find(s, "(.*/)(.-).gpg$")
          local submenu = find_sub_menu(retval, remove_blanks(split(dir,"/")))
-         table.insert(submenu, { name, generate_pass_show_func (_pass, dir, name) })
+         table.insert(submenu, { name, build_pass_show_func (_pass, dir, name) })
       else
          create_sub_menu(retval, remove_blanks(split(s,"/")))
       end
@@ -149,18 +150,27 @@ local function parse_pass_list (_pass, pass_list)
    return retval
 end
 
-local function generate_pass_show_table (_pass)
+local function build_pass_show_table (_pass)
    local pass_raw = awful.util.pread(_pass.tree_cmd .. " " .. _pass.tree_cmd_args ..
                                         " " .. _pass.pass_store)
    local pass_lines = lines(pass_raw)
    table.remove(pass_lines,1)
    local pass_table =
-      parse_pass_list(_pass,
-                      remove_blanks(map(function (s)
-                                     return s:gsub(esc_string(_pass.pass_store),"")
-                                        end,
-                                       pass_lines)))
+      awful.util.table.join( {{ "Generate ...", _pass:generate_pass() },
+            {""}},
+         parse_pass_list(_pass,
+                         remove_blanks(map(function (s)
+                                             return s:gsub(esc_string(_pass.pass_store),"")
+                                           end,
+                                          pass_lines))))
    return pass_table
+end
+
+local function generate_pass (pass_name)
+   local retval = awful.util.pread(self.pass_cmd .. " generate" ..
+                                      self.pass_gen_args .. " " .. pass_name ..
+                                      " " .. self.pass_gen_len)
+   naughty.notify({title="Pass Generation", text = retval, timeout = 10})
 end
 -- }}}
 
@@ -169,7 +179,7 @@ end
 function pass:toggle_pass_show()
    -- regenerate the menu if it doesn't exist or if it isn't visible
    if not self.show_menu or self.show_menu.wibox.visible == false then
-      local pass_table = generate_pass_show_table(self)
+      local pass_table = build_pass_show_table(self)
       self.show_menu = awful.menu({            
             theme = { self.theme.menu, },
             items = pass_table}, self.widget)
@@ -178,7 +188,16 @@ function pass:toggle_pass_show()
 end
 
 function pass:toggle_pass_menu()
+   self.pass_menu = awful.menu({
+         {"Generate", self:generate_pass()},
+   })
    
+   self.pass_menu:toggle()
+end
+
+function pass:generate_pass()
+--   awful.prompt.run( { prompt = "Password name: " },
+--      self.promptbox.widget, pass_generate(s))
 end
 -- }}}
 
@@ -193,23 +212,42 @@ function pass.new(base, args)
    local homedir = "/home/" .. os.getenv("USER") .. "/"
    local _pass = table_update(base,
                               {
+                                 -- functions
                                  toggle_pass_show = pass.toggle_pass_show,
+                                 toggle_pass_menu = pass.toggle_pass_menu,
+                                 generate_pass = pass.generate_pass,
+
+                                 -- options
                                  pass_store = homedir .. "/.password-store",
                                  tree_cmd = "/usr/bin/tree",
                                  tree_cmd_args = "--noreport -F -i -f",
                                  pass_cmd = "/usr/bin/pass",
                                  pass_show_args = "-c",
+                                 pass_gen_args = "-c",
+                                 pass_gen_len = 16,
+
+                                 -- theme
                                  theme = args.theme,
+
+                                 -- menus
                                  show_menu = nil,
                                  pass_menu = nil,
+
+                                 -- prompt box
+                                 -- promptbox = args.promptbox
    })
 
     _pass:buttons(awful.util.table.join(
                      awful.button({}, 1,
                         function ()
                            _pass:toggle_pass_show()
+                     end),
+                     awful.button({}, 3,
+                        function ()
+                           _pass:toggle_pass_menu()
                      end)
     ))
+
    
    return _pass
 end
