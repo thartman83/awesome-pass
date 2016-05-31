@@ -1,3 +1,4 @@
+
 --- awesome-pass.lua --- Pass widget for awesome
 
 -- Copyright (c) 2016 Thomas Hartman (thomas.lees.hartman@gmail.com)
@@ -19,9 +20,11 @@ local beautiful = require("beautiful")
 local button = require("awful.widget.button")
 local wibox = require('wibox')
 
--- pass object
+
 local pass = { mt = {} }
 
+--- Helper functions
+-- {{{
 local table_update = function (t, set)
     for k, v in pairs(set) do
         t[k] = v
@@ -83,7 +86,10 @@ local function remove_blanks(t)
    end
    return retval
 end
+-- }}}
 
+--- Private Pass functions
+-- {{{
 local function generate_pass_show_func (_pass, dir, name)
    return function ()
       awful.util.spawn(_pass.pass_cmd .. " show " ..
@@ -156,7 +162,10 @@ local function generate_pass_show_table (_pass)
                                        pass_lines)))
    return pass_table
 end
+-- }}}
 
+--- Public Methods
+-- {{{
 function pass:toggle_pass_show()
    -- regenerate the menu if it doesn't exist or if it isn't visible
    if not self.show_menu or self.show_menu.wibox.visible == false then
@@ -168,6 +177,13 @@ function pass:toggle_pass_show()
    self.show_menu:toggle()
 end
 
+function pass:toggle_pass_menu()
+   
+end
+-- }}}
+
+--- Constructor
+-- {{{
 function pass.new(base, args)
    args = args or {}
    args.theme = args.theme or {}
@@ -178,7 +194,7 @@ function pass.new(base, args)
    local _pass = table_update(base,
                               {
                                  toggle_pass_show = pass.toggle_pass_show,
-                                 pass_store = homedir .. "/.password-store/",
+                                 pass_store = homedir .. "/.password-store",
                                  tree_cmd = "/usr/bin/tree",
                                  tree_cmd_args = "--noreport -F -i -f",
                                  pass_cmd = "/usr/bin/pass",
@@ -201,5 +217,7 @@ end
 function pass.mt:__call(...)
    return pass.new(...)
 end
+
+-- }}}
 
 return setmetatable(pass, pass.mt)
