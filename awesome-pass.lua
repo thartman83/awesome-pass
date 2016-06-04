@@ -156,48 +156,42 @@ local function build_pass_show_table (_pass)
    local pass_lines = lines(pass_raw)
    table.remove(pass_lines,1)
    local pass_table =
-      awful.util.table.join( {{ "Generate ...", _pass:generate_pass() },
-            {""}},
          parse_pass_list(_pass,
                          remove_blanks(map(function (s)
                                              return s:gsub(esc_string(_pass.pass_store),"")
                                            end,
-                                          pass_lines))))
+                                          pass_lines)))
+
    return pass_table
 end
 
-local function generate_pass (pass_name)
-   local retval = awful.util.pread(self.pass_cmd .. " generate" ..
-                                      self.pass_gen_args .. " " .. pass_name ..
-                                      " " .. self.pass_gen_len)
-   naughty.notify({title="Pass Generation", text = retval, timeout = 10})
+local function gen_pass (_pass, pass_name)
+   local retval = awful.util.spawn(_pass.pass_cmd .. " generate " ..
+                                      _pass.pass_gen_args .. " " .. pass_name ..
+                                      " " .. _pass.pass_gen_len)
+   
+   naughty.notify({title="Pass Generation", text = "Done", timeout = 10})
 end
 -- }}}
 
 --- Public Methods
 -- {{{
-function pass:toggle_pass_show()
-   -- regenerate the menu if it doesn't exist or if it isn't visible
-   if not self.show_menu or self.show_menu.wibox.visible == false then
-      local pass_table = build_pass_show_table(self)
-      self.show_menu = awful.menu({            
-            theme = { self.theme.menu, },
-            items = pass_table}, self.widget)
-   end
-   self.show_menu:toggle()
-end
-
 function pass:toggle_pass_menu()
-   self.pass_menu = awful.menu({
-         {"Generate", self:generate_pass()},
-   })
-   
+   -- regenerate the menu if it doesn't exist or if it isn't visible
+   if not self.pass_menu or self.pass_menu.wibox.visible == false then
+      local pass_table = build_pass_show_table(self)
+      self.pass_menu = awful.menu({
+            theme = { self.theme.menu, },
+            items = awful.util.table.join({{"Generate... ", function() self:generate_pass() end }, {""}},
+               pass_table)},
+         self.widget)
+   end
    self.pass_menu:toggle()
 end
 
 function pass:generate_pass()
---   awful.prompt.run( { prompt = "Password name: " },
---      self.promptbox.widget, pass_generate(s))
+   awful.prompt.run( { prompt = "Password name: " },
+      self.prompt.widget, function(s) gen_pass(self, s) end)
 end
 -- }}}
 
@@ -208,12 +202,12 @@ function pass.new(base, args)
    args.theme = args.theme or {}
    args.theme.menu = args.theme.menu or {}
    args.theme.menu.width = args.theme.menu.width or 150
-   
+
+
    local homedir = "/home/" .. os.getenv("USER") .. "/"
    local _pass = table_update(base,
                               {
                                  -- functions
-                                 toggle_pass_show = pass.toggle_pass_show,
                                  toggle_pass_menu = pass.toggle_pass_menu,
                                  generate_pass = pass.generate_pass,
 
@@ -229,25 +223,19 @@ function pass.new(base, args)
                                  -- theme
                                  theme = args.theme,
 
-                                 -- menus
-                                 show_menu = nil,
+                                 -- menus                                 
                                  pass_menu = nil,
 
-                                 -- prompt box
-                                 -- promptbox = args.promptbox
+                                 -- prompt
+                                 prompt = args.prompt
    })
 
     _pass:buttons(awful.util.table.join(
                      awful.button({}, 1,
                         function ()
-                           _pass:toggle_pass_show()
-                     end),
-                     awful.button({}, 3,
-                        function ()
                            _pass:toggle_pass_menu()
                      end)
     ))
-
    
    return _pass
 end
