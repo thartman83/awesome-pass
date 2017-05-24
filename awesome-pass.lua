@@ -15,11 +15,10 @@
 -- GNU General Public License for more details.
 
 local setmetatable = setmetatable
-local awful = require('awful')
-local beautiful = require("beautiful")
-local button = require("awful.widget.button")
-local wibox = require('wibox')
-local naughty = require("naughty")
+local awful        = require('awful')
+local beautiful    = require('beautiful')
+local wibox        = require('wibox')
+local naughty      = require("naughty")
 
 
 local pass = { mt = {} }
@@ -150,21 +149,6 @@ local function parse_pass_list (_pass, pass_list)
    return retval
 end
 
-local function build_pass_show_table (_pass)
-   local pass_raw = awful.util.pread(_pass.tree_cmd .. " " .. _pass.tree_cmd_args ..
-                                        " " .. _pass.pass_store)
-   local pass_lines = lines(pass_raw)
-   table.remove(pass_lines,1)
-   local pass_table =
-         parse_pass_list(_pass,
-                         remove_blanks(map(function (s)
-                                             return s:gsub(esc_string(_pass.pass_store),"")
-                                           end,
-                                          pass_lines)))
-
-   return pass_table
-end
-
 local function gen_pass (_pass, pass_name)
    local retval = awful.util.spawn(_pass.pass_cmd .. " generate " ..
                                       _pass.pass_gen_args .. " " .. pass_name ..
@@ -179,14 +163,27 @@ end
 function pass:toggle_pass_menu()
    -- regenerate the menu if it doesn't exist or if it isn't visible
    if not self.pass_menu or self.pass_menu.wibox.visible == false then
-      local pass_table = build_pass_show_table(self)
-      self.pass_menu = awful.menu({
-            theme = { self.theme.menu, },
-            items = awful.util.table.join({{"Generate... ", function() self:generate_pass() end }, {""}},
-               pass_table)},
-         self.widget)
+      awful.spawn.easy_async(self.tree_cmd .. " " .. self.tree_cmd_args ..
+                                " " .. self.pass_store,
+        function (stdout, stderr, reason, exit_code)
+           local pass_lines = lines(stdout)
+           -- Remove the `Password Store' header
+           table.remove(pass_lines,1)
+           local pass_table = parse_pass_list(self,
+                                              remove_blanks(map(function (s)
+                                                return s:gsub(esc_string(self.pass_store),"")
+                                              end,
+                                                               pass_lines)))
+           pass_table = awful.util.table.join({{"Generate... ", function() self:generate_pass() end},
+                 {""}}, pass_table)
+           self.pass_menu = awful.menu({theme = {self.theme.menu},
+                                        items = pass_table},
+              self.widget)
+           self.pass_menu:toggle()                                        
+      end)
+   else
+      self.pass_menu:toggle()
    end
-   self.pass_menu:toggle()
 end
 
 function pass:generate_pass()
