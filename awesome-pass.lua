@@ -18,20 +18,14 @@ local setmetatable = setmetatable
 local awful        = require('awful')
 local beautiful    = require('beautiful')
 local wibox        = require('wibox')
-local naughty      = require("naughty")
-
+local naughty      = require('naughty')
+local gstring      = require('gears.string')
+local gtable       = require('gears.table')
 
 local pass = { mt = {} }
 
 --- Helper functions
 -- {{{
-local table_update = function (t, set)
-    for k, v in pairs(set) do
-        t[k] = v
-    end
-    return t
-end
-
 local function map(func, arr)
    local retval = {}
    for i,v in ipairs(arr) do
@@ -48,33 +42,17 @@ local function lines(str)
 end
 
 local function split(str, delim, noblanks)   
+   if str == nil then return {} end
+
    local t = {}
-   if str == nil then
-      return t
-   end
-   
-   local function helper(part) table.insert(t, part) return "" end
+   local function helper(part) table.insert(t, part) return "" end   
    helper((str:gsub("(.-)" .. delim, helper)))
+
    if noblanks then
       return remove_blanks(t)
    else
       return t
    end
-end
-
-local function esc_string(x)
-   return (x:gsub('%%', '%%%%')
-              :gsub('^%^', '%%^')
-              :gsub('%$$', '%%$')
-              :gsub('%(', '%%(')
-              :gsub('%)', '%%)')
-              :gsub('%.', '%%.')
-              :gsub('%[', '%%[')
-              :gsub('%]', '%%]')
-              :gsub('%*', '%%*')
-              :gsub('%+', '%%+')
-              :gsub('%-', '%%-')
-              :gsub('%?', '%%?'))
 end
 
 local function remove_blanks(t)
@@ -83,7 +61,7 @@ local function remove_blanks(t)
       if s ~= "" and s ~= nil then
          table.insert(retval, s)
       end
-   end
+   end   
    return retval
 end
 -- }}}
@@ -171,10 +149,10 @@ function pass:toggle_pass_menu()
            table.remove(pass_lines,1)
            local pass_table = parse_pass_list(self,
                                               remove_blanks(map(function (s)
-                                                return s:gsub(esc_string(self.pass_store),"")
+                                                  return s:gsub(gstring.quote_pattern(self.pass_store),"")
                                               end,
                                                                pass_lines)))
-           pass_table = awful.util.table.join({{"Generate... ", function() self:generate_pass() end},
+           pass_table = gtable.join({{"Generate... ", function() self:generate_pass() end},
                  {""}}, pass_table)
            self.pass_menu = awful.menu({theme = {self.theme.menu},
                                         items = pass_table},
@@ -202,7 +180,7 @@ function pass.new(base, args)
 
 
    local homedir = "/home/" .. os.getenv("USER") .. "/"
-   local _pass = table_update(base,
+   local _pass = gtable.join(base,
                               {
                                  -- functions
                                  toggle_pass_menu = pass.toggle_pass_menu,
