@@ -40,3 +40,7 @@ luac.out
 *.hex
 
 /awesome-pass.lua~
+tests/mocks/gears/*.lua~
+tests/mocks/*.lua~
+tests/unit/*.lua~
+*~

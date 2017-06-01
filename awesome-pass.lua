@@ -15,9 +15,8 @@
 -- GNU General Public License for more details.
 
 local setmetatable = setmetatable
+local lut          = require('lua-utils.table')
 local awful        = require('awful')
-local beautiful    = require('beautiful')
-local wibox        = require('wibox')
 local naughty      = require('naughty')
 local gstring      = require('gears.string')
 local gtable       = require('gears.table')
@@ -26,14 +25,6 @@ local pass = { mt = {} }
 
 --- Helper functions
 -- {{{
-local function map(func, arr)
-   local retval = {}
-   for i,v in ipairs(arr) do
-      retval[i] = func(v)
-   end
-   return retval
-end
-
 local function lines(str)
    local t = {}
    local function helper(line) table.insert(t, line) return "" end
@@ -148,7 +139,7 @@ function pass:toggle_pass_menu()
            -- Remove the `Password Store' header
            table.remove(pass_lines,1)
            local pass_table = parse_pass_list(self,
-                                              remove_blanks(map(function (s)
+                                              remove_blanks(lut.map(function (s)
                                                   return s:gsub(gstring.quote_pattern(self.pass_store),"")
                                               end,
                                                                pass_lines)))
@@ -205,12 +196,12 @@ function pass.new(base, args)
                                  prompt = args.prompt
    })
 
-    _pass:buttons(awful.util.table.join(
-                     awful.button({}, 1,
-                        function ()
-                           _pass:toggle_pass_menu()
-                     end)
-    ))
+   _pass:buttons(gtable.join(
+                    awful.button({}, 1,
+                       function ()
+                          _pass:toggle_pass_menu()
+                    end)
+   ))
    
    return _pass
 end
