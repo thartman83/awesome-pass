@@ -1,0 +1,6 @@
+.
+./keys/
+./keys/a.gpg
+./keys/b.gpg
+./misc/c.gpg
+./root.gpg

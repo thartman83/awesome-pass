@@ -138,17 +138,20 @@ function pass:toggle_pass_menu()
            local pass_lines = lines(stdout)
            -- Remove the `Password Store' header
            table.remove(pass_lines,1)
+           for i,v in ipairs(pass_lines) do
+              print(v)
+           end
            local pass_table = parse_pass_list(self,
-                                              remove_blanks(lut.map(function (s)
-                                                  return s:gsub(gstring.quote_pattern(self.pass_store),"")
-                                              end,
-                                                               pass_lines)))
+                                              remove_blanks(lut.map(pass_lines,
+                                                   function (s)
+                                                      return gstring.quote_pattern(s)
+                                                   end)))
            pass_table = gtable.join({{"Generate... ", function() self:generate_pass() end},
                  {""}}, pass_table)
            self.pass_menu = awful.menu({theme = {self.theme.menu},
                                         items = pass_table},
               self.widget)
-           self.pass_menu:toggle()                                        
+           self.pass_menu:toggle()
       end)
    else
       self.pass_menu:toggle()

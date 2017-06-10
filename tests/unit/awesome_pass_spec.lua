@@ -22,16 +22,18 @@
 package.path = "./tests/mocks/?.lua;" .. package.path
 
 local pass  = require('awesome-pass')
+local awful = require('awful')
 
 describe("awesome-pass tests", function ()
   describe("toggle_pass_menu tests", function ()
-    it("should build a new pass_menu when none exists", function ()
-      local base = {}
-      function base:buttons(...) end
-      
-      local p = pass.new(base)
-      p.set_callback_values(
-      p:toggle_pass_menu()
+      it("should build a new pass_menu when none exists", function ()
+         local base = {}
+         function base:buttons(...) end
+         local p = pass.new(base)
+         awful.spawn.set_callback_values(io.open("./tests/test.txt"):read("*all"),"",
+                                         "exit",0)
+         assert.is_nil(p.pass_menu)
+         p:toggle_pass_menu()
     end)
   end)
 end)
