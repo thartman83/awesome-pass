@@ -30,12 +30,11 @@ menu.mt       = {}
 ----------------------------------------------------------------------
 -- 
 ----------------------------------------------------------------------
-function menu_call (table)
-
+function menu_call (_, args, parent)
+   return args
 end
 -- }}}
 
-menu.mt.__call = menu_call
 -- }}}
 --- spawn mocks and stubs -- {{{
 local spawn    = {}
@@ -102,7 +101,7 @@ end
 button.mt.__call = button_call
 -- }}}
 
-return { menu  = setmetatable(menu,   menu.mt),
+return { menu  = setmetatable(menu, {__call = menu_call}),
          spawn = setmetatable(spawn, spawn.mt),
          button = setmetatable(button, button.mt),
 }

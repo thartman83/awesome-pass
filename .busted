@@ -27,6 +27,7 @@ return {
       verbose   = true
    },
    unit = {
+      tags      = unit
       ROOT      = {"tests/unit"},
       pattern   = "spec",
       verbose   = true,

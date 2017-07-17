@@ -1,4 +1,3 @@
-
 --- awesome-pass.lua --- Pass widget for awesome
 
 -- Copyright (c) 2016 Thomas Hartman (thomas.lees.hartman@gmail.com)
@@ -15,11 +14,13 @@
 -- GNU General Public License for more details.
 
 local setmetatable = setmetatable
-local lut          = require('lua-utils.table')
-local awful        = require('awful')
-local naughty      = require('naughty')
-local gstring      = require('gears.string')
-local gtable       = require('gears.table')
+local lut          = require('lua-utils.table' )
+local lus          = require('lua-utils.string')
+local awful        = require('awful'           )
+local naughty      = require('naughty'         )
+local gstring      = require('gears.string'    )
+local gtable       = require('gears.table'     )
+local md5          = require('md5'             )
 
 local pass = { mt = {} }
 
@@ -129,6 +130,61 @@ end
 
 --- Public Methods
 -- {{{
+
+--- pass_store_has_changed -- {{{
+----------------------------------------------------------------------
+-- Returns true if the password store has been modified since the last
+-- time that the pass_table was built, false otherwise.  NOTE: this
+-- returns true only if the structure of the password store has
+-- changed, not the actual contents of already existing items
+-- @param pass_tree_data output from the `tree' call on the
+--                       password-store
+----------------------------------------------------------------------
+function pass:pass_store_has_changed (pass_tree_data)
+   return not self.pass_md5 == md5.sumhexa(pass_tree_data)
+end
+-- }}}
+
+--- pass:build_pass_table -- {{{
+----------------------------------------------------------------------
+-- Builds a table from the entries in the password-store tree
+-- @param pass_tree_data output from the `tree' call on the
+--                       password-store
+----------------------------------------------------------------------
+function pass:build_pass_table (pass_tree_data)
+   -- Split the data by lines and quote any control characters in the
+   -- resulting set of strings
+   local pass_list = lut.remove_blanks(lut.map(lus.lines(pass_tree_data),
+                                               function (s)
+                                                  return gstring.quote_pattern(s)
+                                               end))
+   self.pass_menu = awful.menu(
+      {theme = {self.theme.menu},
+       items = gtable.join(
+          {{"Generate ... ", function () self:gen_password() end},
+           {""}},
+          parse_pass_list(self, pass_list))},
+      self.widget)
+end
+-- }}}
+
+--- pass:show_pass_menu -- {{{
+----------------------------------------------------------------------
+-- Shows the pass menu
+-- @param pass_tree_data output from the `tree' call on the
+--                       password-store
+----------------------------------------------------------------------
+function pass:show_pass_menu (pass_tree_data)
+   -- check first to see if we actually need to do anything (password
+   -- store has changed and the table hasn't been built yet)
+   if self.pass_store_has_changed(pass_tree_data) or self.pass_menu == nil then
+      self:parse_pass_tree(pass_tree_data)
+   end
+
+   self.pass_menu:toggle()
+end
+-- }}}
+
 function pass:toggle_pass_menu()
    -- regenerate the menu if it doesn't exist or if it isn't visible
    if not self.pass_menu or self.pass_menu.wibox.visible == false then
@@ -167,44 +223,31 @@ end
 --- Constructor
 -- {{{
 function pass.new(base, args)
+   local homedir = "/home/" .. os.getenv("USER") .. "/"  
+   local _pass          = gtable.join(base, pass)
+
    args = args or {}
    args.theme = args.theme or {}
    args.theme.menu = args.theme.menu or {}
-   args.theme.menu.width = args.theme.menu.width or 150
+   args.theme.menu.width = args.theme.menu.width or 150   
 
-
-   local homedir = "/home/" .. os.getenv("USER") .. "/"
-   local _pass = gtable.join(base,
-                              {
-                                 -- functions
-                                 toggle_pass_menu = pass.toggle_pass_menu,
-                                 generate_pass = pass.generate_pass,
-
-                                 -- options
-                                 pass_store = homedir .. "/.password-store",
-                                 tree_cmd = "/usr/bin/tree",
-                                 tree_cmd_args = "--noreport -F -i -f",
-                                 pass_cmd = "/usr/bin/pass",
-                                 pass_show_args = "-c",
-                                 pass_gen_args = "-c",
-                                 pass_gen_len = 16,
-
-                                 -- theme
-                                 theme = args.theme,
-
-                                 -- menus                                 
-                                 pass_menu = nil,
-
-                                 -- prompt
-                                 prompt = args.prompt
-   })
+   _pass.pass_store     = homedir .. "/.password-store"
+   _pass.tree_cmd       = "/usr/bin/tree"
+   _pass.tree_cmd_args  = "--noreport -F -i -f"
+   _pass.pass_cmd       = "/usr/bin/pass"
+   _pass.pass_show_args = "-c"
+   _pass.pass_gen_args  = "-c"
+   _pass.pass_gen_len   = 16
+   _pass.pass_md5       = ""
+   _pass.theme          = args.theme
+   _pass.pass_menu      = nil
+   _pass.prompt         = args.prompt
 
    _pass:buttons(gtable.join(
                     awful.button({}, 1,
                        function ()
                           _pass:toggle_pass_menu()
-                    end)
-   ))
+                    end)))
    
    return _pass
 end
