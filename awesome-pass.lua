@@ -14,14 +14,16 @@
 -- GNU General Public License for more details.
 
 local setmetatable = setmetatable
-local lut          = require('lua-utils.table' )
-local lus          = require('lua-utils.string')
+-- local lut          = require('lua-utils.table' )
+-- local lus          = require('lua-utils.string')
 local awful        = require('awful'           )
+local radical      = require('radical'         )
 local naughty      = require('naughty'         )
 local gstring      = require('gears.string'    )
 local gtable       = require('gears.table'     )
-local md5          = require('md5'             )
+-- local md5          = require('md5'             )
 
+require('pl.stringx').import()
 local pass = { mt = {} }
 
 --- Helper functions
@@ -33,7 +35,7 @@ local function lines(str)
    return t
 end
 
-local function split(str, delim, noblanks)   
+local function split(str, delim, noblanks)
    if str == nil then return {} end
 
    local t = {}
@@ -60,65 +62,6 @@ end
 
 --- Private Pass functions
 -- {{{
-local function build_pass_show_func (_pass, dir, name)
-   return function ()
-      awful.util.spawn(_pass.pass_cmd .. " show " ..
-                       _pass.pass_show_args .. " " ..
-                       dir .. "/" .. name)
-   end   
-end
-
-local function find_sub_menu(t, dirs)   
-   local dirs = dirs
-
-   if next(dirs) == nil then
-      return t
-   end
-   
-   local dir = table.remove(dirs, 1)
-   
-   for i,v in ipairs(t) do
-      if v[1] == dir then
-         if table.getn(dirs) == 0 then
-            return v[2]
-         else
-            return find_sub_menu(v[2], dirs)
-         end
-      end
-   end
-   
-   return nil
-end
-
-local function create_sub_menu(t, dirs)
-   local dirs = dirs
-   if table.getn(dirs) == 0 then
-      return t
-   end
-   local dir = table.remove(dirs, 1)
-   local submenu = find_sub_menu(t, { dir } )
-   if submenu == nil then
-      table.insert(t, { dir, {} })
-      submenu = find_sub_menu(t, { dir })
-   end
-   create_sub_menu(submenu, dirs)
-end
-
-local function parse_pass_list (_pass, pass_list)
-   local retval = {}
-   for _, s in pairs(pass_list) do
-      if string.find(s, "\.gpg$") then
-         local _, _, dir, name = string.find(s, "(.*/)(.-).gpg$")
-         local submenu = find_sub_menu(retval, remove_blanks(split(dir,"/")))
-         table.insert(submenu, { name, build_pass_show_func (_pass, dir, name) })
-      else
-         create_sub_menu(retval, remove_blanks(split(s,"/")))
-      end
-   end
-
-   return retval
-end
-
 local function gen_pass (_pass, pass_name)
    local retval = awful.util.spawn(_pass.pass_cmd .. " generate " ..
                                       _pass.pass_gen_args .. " " .. pass_name ..
@@ -131,6 +74,59 @@ end
 --- Public Methods
 -- {{{
 
+--- pass_show_callback -- {{{
+----------------------------------------------------------------------
+-- Call back function for pass show $ENTRY
+--
+-- @param stdout standard output from the command
+-- @param stderr standard error output from the command
+-- @param exitreason reason the program exited (exit code or signal)
+-- @param exitcode exit code value (or signal code)
+----------------------------------------------------------------------
+function pass_show_callback (stdout,stderr,exitreason,exitcode)
+   
+end
+-- }}}
+
+--- pass:show_pass_func -- {{{
+----------------------------------------------------------------------
+-- Return a function that makes an asynchronous call to pass, using
+-- the default pass show values.
+-- 
+-- @param entry entry in the password store to create the
+-- function for
+----------------------------------------------------------------------
+function pass:show_pass_func (entry)
+   local cmd = self.pass_cmd .. " show " .. self.pass_show_args .. " " .. entry
+   
+   return
+      function ()
+         awful.spawn.easy_async(cmd, pass_show_callback)
+      end
+end
+-- }}}
+
+--- pass:parse_pass_list -- {{{
+----------------------------------------------------------------------
+-- Returns a formated table of entries in the password store with each
+-- entry having an associated function that to pass show -c $ENTRY
+--
+-- @param pass_tree_data output from the `tree' call on the
+--                       password-store
+----------------------------------------------------------------------
+function pass:parse_pass_list (pass_tree_data)
+   local menu_tbl = {}
+   local menu_ctx = radical.context{}
+
+   print(pass_tree_data)
+   for s in pass_tree_data:lines() do
+      
+   end
+
+   return retval
+end
+-- }}}
+
 --- pass_store_has_changed -- {{{
 ----------------------------------------------------------------------
 -- Returns true if the password store has been modified since the last
@@ -141,7 +137,8 @@ end
 --                       password-store
 ----------------------------------------------------------------------
 function pass:pass_store_has_changed (pass_tree_data)
-   return not self.pass_md5 == md5.sumhexa(pass_tree_data)
+   return false
+--   return not self.pass_md5 == md5.sumhexa(pass_tree_data)
 end
 -- }}}
 
@@ -152,72 +149,43 @@ end
 --                       password-store
 ----------------------------------------------------------------------
 function pass:build_pass_table (pass_tree_data)
-   -- Split the data by lines and quote any control characters in the
-   -- resulting set of strings
-   local pass_list = lut.remove_blanks(lut.map(lus.lines(pass_tree_data),
-                                               function (s)
-                                                  return gstring.quote_pattern(s)
-                                               end))
-   self.pass_menu = awful.menu(
-      {theme = {self.theme.menu},
-       items = gtable.join(
-          {{"Generate ... ", function () self:gen_password() end},
-           {""}},
-          parse_pass_list(self, pass_list))},
-      self.widget)
+   self.pass_menu = radical.context{style=radical.style.classic,
+                                    item_style=radical.item.style.classic}
+   self.pass_menu:add_item{text="New ..."}
+--   self.pass_menu = awful.menu(
+--      {theme = {self.theme.menu},
+--       items = gtable.join(
+--          {{"Generate ... ", function () self:gen_password() end},
+--           {""}},
+--          self:parse_pass_list(pass_tree_data))},
+--      self.widget)
 end
 -- }}}
 
---- pass:show_pass_menu -- {{{
+--- pass:show_pass_menu_callback -- {{{
 ----------------------------------------------------------------------
--- Shows the pass menu
--- @param pass_tree_data output from the `tree' call on the
---                       password-store
+-- 
 ----------------------------------------------------------------------
-function pass:show_pass_menu (pass_tree_data)
-   -- check first to see if we actually need to do anything (password
-   -- store has changed and the table hasn't been built yet)
-   if self.pass_store_has_changed(pass_tree_data) or self.pass_menu == nil then
-      self:parse_pass_tree(pass_tree_data)
+function pass:show_pass_menu (stdout, stderr, exitreason, exitcode)
+   if exitcode ~= 0 then
+      return
    end
-
-   self.pass_menu:toggle()
+   
+   self:build_pass_table(stdout)
+   self.pass_menu.visible = true
 end
 -- }}}
 
-function pass:toggle_pass_menu()
-   -- regenerate the menu if it doesn't exist or if it isn't visible
-   if not self.pass_menu or self.pass_menu.wibox.visible == false then
-      awful.spawn.easy_async(self.tree_cmd .. " " .. self.tree_cmd_args ..
-                                " " .. self.pass_store,
-        function (stdout, stderr, reason, exit_code)
-           local pass_lines = lines(stdout)
-           -- Remove the `Password Store' header
-           table.remove(pass_lines,1)
-           for i,v in ipairs(pass_lines) do
-              print(v)
-           end
-           local pass_table = parse_pass_list(self,
-                                              remove_blanks(lut.map(pass_lines,
-                                                   function (s)
-                                                      return gstring.quote_pattern(s)
-                                                   end)))
-           pass_table = gtable.join({{"Generate... ", function() self:generate_pass() end},
-                 {""}}, pass_table)
-           self.pass_menu = awful.menu({theme = {self.theme.menu},
-                                        items = pass_table},
-              self.widget)
-           self.pass_menu:toggle()
-      end)
-   else
-      self.pass_menu:toggle()
-   end
-end
-
-function pass:generate_pass()
+--- pass:generate_pass -- {{{
+----------------------------------------------------------------------
+-- Add a new password to the password store via the awful prompt box
+----------------------------------------------------------------------
+function pass:generate_pass ()
    awful.prompt.run( { prompt = "Password name: " },
       self.prompt.widget, function(s) gen_pass(self, s) end)
 end
+-- }}}
+
 -- }}}
 
 --- Constructor
@@ -231,7 +199,7 @@ function pass.new(base, args)
    args.theme.menu = args.theme.menu or {}
    args.theme.menu.width = args.theme.menu.width or 150   
 
-   _pass.pass_store     = homedir .. "/.password-store"
+   _pass.pass_store     = homedir .. ".password-store"
    _pass.tree_cmd       = "/usr/bin/tree"
    _pass.tree_cmd_args  = "--noreport -F -i -f"
    _pass.pass_cmd       = "/usr/bin/pass"
@@ -246,8 +214,13 @@ function pass.new(base, args)
    _pass:buttons(gtable.join(
                     awful.button({}, 1,
                        function ()
-                          _pass:toggle_pass_menu()
-                    end)))
+                          _pass.toggle_pass_menu()
+                          awful.spawn.easy_async(_pass.tree_cmd .. " " .. _pass.tree_cmd_args ..
+                                                    " " .. _pass.pass_store,
+                             function(s,e,exr,exc)
+                                _pass:show_pass_menu(s,e,exr,exc)
+                          end)
+                       end)))
    
    return _pass
 end

@@ -25,15 +25,29 @@ local pass  = require('awesome-pass')
 local awful = require('awful')
 
 describe("awesome-pass tests", function ()
+  describe("parse_pass_list tests", function ()
+    it("should parse the tree password data", function ()
+      local base = {}
+      function base:buttons(...) end
+      local p = pass(base)
+      
+      local t = io.open("./tests/test.txt"):read("*all")
+      local pass_menu = p:parse_pass_list(t)
+      assert.is_not_nil(pass_menu)
+      assert.are.same(3, table.getn(pass_menu))
+    end)
+  end)
+  
   describe("build_pass_menu tests", function ()
       it("should build a new pass_menu when none exists", function ()
          local base = {}
          function base:buttons(...) end
          local p = pass(base)
-         awful.spawn.set_callback_values(io.open("./tests/test.txt"):read("*all"),"",
-                                         "exit",0)
+
+         local t = io.open("./tests/test.txt"):read("*all")
+
          assert.is_nil(p.pass_menu)
-         p:build_pass_table()
+         p:build_pass_table(t)
 
          assert.is_not_nil(p.pass_menu)
          assert.equals(3, #p.pass_menu.items)

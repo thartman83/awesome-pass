@@ -1,6 +1,6 @@
-.
-./keys/
-./keys/a.gpg
-./keys/b.gpg
-./misc/c.gpg
-./root.gpg
+/home/user/.password-store
+/home/user/.password-store/keys/
+/home/user/.password-store/keys/a.gpg
+/home/user/.password-store/keys/b.gpg
+/home/user/.password-store/misc/c.gpg
+/home/user/.password-store/root.gpg
