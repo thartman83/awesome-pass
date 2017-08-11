@@ -106,27 +106,6 @@ function pass:show_pass_func (entry)
 end
 -- }}}
 
---- pass:parse_pass_list -- {{{
-----------------------------------------------------------------------
--- Returns a formated table of entries in the password store with each
--- entry having an associated function that to pass show -c $ENTRY
---
--- @param pass_tree_data output from the `tree' call on the
---                       password-store
-----------------------------------------------------------------------
-function pass:parse_pass_list (pass_tree_data)
-   local menu_tbl = {}
-   local menu_ctx = radical.context{}
-
-   print(pass_tree_data)
-   for s in pass_tree_data:lines() do
-      
-   end
-
-   return retval
-end
--- }}}
-
 --- pass_store_has_changed -- {{{
 ----------------------------------------------------------------------
 -- Returns true if the password store has been modified since the last
@@ -148,17 +127,37 @@ end
 -- @param pass_tree_data output from the `tree' call on the
 --                       password-store
 ----------------------------------------------------------------------
-function pass:build_pass_table (pass_tree_data)
+function pass:build_pass_table (pass_list)
    self.pass_menu = radical.context{style=radical.style.classic,
                                     item_style=radical.item.style.classic}
    self.pass_menu:add_item{text="New ..."}
---   self.pass_menu = awful.menu(
---      {theme = {self.theme.menu},
---       items = gtable.join(
---          {{"Generate ... ", function () self:gen_password() end},
---           {""}},
---          self:parse_pass_list(pass_tree_data))},
---      self.widget)
+
+   local submenu_tbl = {}
+   submenu_tbl[""] = self.pass_menu
+
+   for _,v in ipairs(pass_list) do
+      print("Processing " .. v)
+      
+      local parts = split(v,"/")
+      local name = table.remove(parts)
+      local path = table.concat(parts,"/")
+
+      -- check to see if we've hit a path entry
+      if name == "" then
+         submenu_tbl[path] = radical.context{style=radical.style.classic,
+                                             item_style=radical.item.style.classic}
+         local new_menu_name = table.remove(parts)
+         local menu_root = table.concat(parts,"/")
+         print("Adding new menu " .. new_menu_name .. " to `" ..
+                  menu_root .. "' with path " .. path)
+         submenu_tbl[menu_root]:add_item{text = new_menu_name,
+                                           sub_menu = submenu_tbl[path]}
+
+      else -- this should be a path entry, so add it to the appropriate submenu
+         submenu_tbl[path]:add_item{text=split(name,"%.")[1],
+                                    button1=self:show_pass_func(v)}
+      end
+   end
 end
 -- }}}
 
@@ -166,12 +165,20 @@ end
 ----------------------------------------------------------------------
 -- 
 ----------------------------------------------------------------------
-function pass:show_pass_menu (stdout, stderr, exitreason, exitcode)
+function pass:show_pass_menu_callback (stdout, stderr, exitreason, exitcode)
    if exitcode ~= 0 then
       return
-   end
+   end   
+
+   -- Strip the root password-store information
+   local pass_list = stdout:gsub(gstring.quote_pattern(self.pass_store .. "/"),"")
+   -- Split the result into lines
+   local pass_lines = split(pass_list,"\n")
+   -- pop the leading and trailing blank lines
+   table.remove(pass_lines,1)
+   table.remove(pass_lines)
    
-   self:build_pass_table(stdout)
+   self:build_pass_table(pass_lines)
    self.pass_menu.visible = true
 end
 -- }}}
@@ -183,6 +190,23 @@ end
 function pass:generate_pass ()
    awful.prompt.run( { prompt = "Password name: " },
       self.prompt.widget, function(s) gen_pass(self, s) end)
+end
+-- }}}
+
+--- self:toggle_pass_menu -- {{{
+----------------------------------------------------------------------
+-- Shows or closes the pass menu
+----------------------------------------------------------------------
+function pass:toggle_pass_menu ()   
+   if self.pass_menu == nil or self.pass_menu.visible == false then
+      awful.spawn.easy_async(self.tree_cmd .. " " .. self.tree_cmd_args ..
+                                " " .. self.pass_store,
+                             function(s,e,exr,exc)
+                                self:show_pass_menu_callback(s,e,exr,exc)
+      end)
+   else
+      self.pass_menu.hide()
+   end
 end
 -- }}}
 
@@ -214,13 +238,8 @@ function pass.new(base, args)
    _pass:buttons(gtable.join(
                     awful.button({}, 1,
                        function ()
-                          _pass.toggle_pass_menu()
-                          awful.spawn.easy_async(_pass.tree_cmd .. " " .. _pass.tree_cmd_args ..
-                                                    " " .. _pass.pass_store,
-                             function(s,e,exr,exc)
-                                _pass:show_pass_menu(s,e,exr,exc)
-                          end)
-                       end)))
+                          _pass:toggle_pass_menu()
+   end)))
    
    return _pass
 end
