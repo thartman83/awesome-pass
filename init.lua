@@ -20,8 +20,9 @@
 
 --- awesome-pass -- {{{
 
---- Libraries -- {{{
+--- Libraries -- {{{o
 local setmetatable = setmetatable
+local math         = math
 local color        = require('gears.color' )
 local wibox        = require('wibox'       )
 local cairo        = require('lgi'         )
@@ -104,8 +105,21 @@ end
 function pass:draw (w, cr, width, height)
    cr:set_source(color(self._color or beautiful.fg_normal))
 
+   cr.line_width = 1
+
+   -- key eye
+   cr:arc(width * .5 + .5,     height * .4,
+          width * .3     ,     0,
+          2 * math.pi)
+   
+   -- key shaft
    cr:move_to(width * .5, height * .5)
    cr:line_to(width * .5, height * .8)
+
+   -- key teeth
+   cr:line_to(width * .95, height * .8)
+   cr:move_to(width * .5, height * .65)
+   cr:line_to(width * .95, height * .65)
    
    cr:stroke()
 end
@@ -118,9 +132,6 @@ end
 function parse_pass_tree (menu, passlist, root)
    local i,v = next(passlist)
    local next_menu, next_root
-
-
-   print("Parsing " .. v)
       
    -- if the next pass entry is blank return
    -- if the next pass entry is at the wrong level return
@@ -131,14 +142,13 @@ function parse_pass_tree (menu, passlist, root)
    table.remove(passlist,1)
    
    local parts = gstring.split(v:sub(#root + 2),"/")
-   print("Found " .. #parts .. " in " .. v:sub(#root + 2))
    
    if #parts == 1 then      
-      menu:add_item { text=gstring.split(parts[1],"%.")[1] }
+      menu:add_item { text=gstring.split(parts[1],"%.")[1]}
+                      
    else      
-      local smenu = parse_pass_tree(radical.context{style=radical.style.classic,
-                                                   item_style=radical.classic}, passlist,
-                                    root .. "/" .. parts[1])
+      local smenu = parse_pass_tree(radical.context{},
+                                    passlist, root .. "/" .. parts[1])
       menu:add_item { text=parts[1],
                       sub_menu = smenu }
    end
@@ -147,15 +157,13 @@ function parse_pass_tree (menu, passlist, root)
 end
 -- }}}
 
-
 --- pass:build_pass_menu -- {{{
 ----------------------------------------------------------------------
 -- Build the pass menu based on the given output in stdout
 ----------------------------------------------------------------------
 function pass:build_pass_menu (stdout, stderr, exit_reason, exit_code)
-   self._menu = radical.context{style=radical.style.classic,
-                                    item_style=radical.item.style.classic}
-   self._menu:add_item{ text = "New ..."}
+   self._menu = radical.context{}
+   self._menu:add_item{ text = "New ..."}   
 
    local passlist = gstring.lines(stdout)
 
