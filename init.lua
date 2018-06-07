@@ -119,25 +119,31 @@ function parse_pass_tree (menu, passlist, root)
    local i,v = next(passlist)
    local next_menu, next_root
 
+
+   print("Parsing " .. v)
+      
    -- if the next pass entry is blank return
    -- if the next pass entry is at the wrong level return
-   if v == nil or root ~= v:sub(1, #v) then
+   if v == nil or root ~= v:sub(1, #root) then
       return menu
    end
 
    table.remove(passlist,1)
    
-   local parts = split(v:sub(#root + 2),"/")
-   if #parts == 1 then
-      menu:add_item { text=split(parts[1],".")[1] }     
+   local parts = gstring.split(v:sub(#root + 2),"/")
+   print("Found " .. #parts .. " in " .. v:sub(#root + 2))
+   
+   if #parts == 1 then      
+      menu:add_item { text=gstring.split(parts[1],"%.")[1] }
    else      
-      local smenu = parse_pass_tree(radical.context{}, passlist,
+      local smenu = parse_pass_tree(radical.context{style=radical.style.classic,
+                                                   item_style=radical.classic}, passlist,
                                     root .. "/" .. parts[1])
       menu:add_item { text=parts[1],
-                      sub_menu = next_menu }
+                      sub_menu = smenu }
    end
    
-   parse_pass_tree(menu, passlist, root)
+   return parse_pass_tree(menu, passlist, root)
 end
 -- }}}
 
@@ -156,8 +162,9 @@ function pass:build_pass_menu (stdout, stderr, exit_reason, exit_code)
    -- The first line of the tree output is the root directory
    local passroot = table.remove(passlist, 1)
    
-   parse_pass_tree(self.pass_menu, passlist, passroot)
-   self:set_menu(self._menu)
+   parse_pass_tree(self._menu, passlist, passroot)
+   self._menu.parent_geometry = rawget(self, "widget_geo")
+   self._menu.visible = true
 end
 -- }}}
 
