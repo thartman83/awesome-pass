@@ -100,7 +100,7 @@ end
 
 --- bat:draw -- {{{
 ----------------------------------------------------------------------
--- 
+-- Draw the pass widget
 ----------------------------------------------------------------------
 function pass:draw (w, cr, width, height)
    cr:set_source(color(self._color or beautiful.fg_normal))
@@ -129,31 +129,28 @@ end
 ----------------------------------------------------------------------
 -- 
 ----------------------------------------------------------------------
-function parse_pass_tree (menu, passlist, root)
+function parse_pass_tree (parent, passlist, root)
    local i,v = next(passlist)
-   local next_menu, next_root
       
    -- if the next pass entry is blank return
    -- if the next pass entry is at the wrong level return
    if v == nil or root ~= v:sub(1, #root) then
-      return menu
+      return parent
    end
 
+   -- pop the passlist
    table.remove(passlist,1)
    
    local parts = gstring.split(v:sub(#root + 2),"/")
    
-   if #parts == 1 then      
-      menu:add_item { text=gstring.split(parts[1],"%.")[1]}
-                      
-   else      
-      local smenu = parse_pass_tree(radical.context{},
-                                    passlist, root .. "/" .. parts[1])
-      menu:add_item { text=parts[1],
-                      sub_menu = smenu }
+   if #parts == 1 then
+      table.insert(parent, { gstring.split(parts[1], "%.")[1] })
+   else
+      local submenu = parse_pass_tree({}, passlist, root .. "/" .. parts[1])
+      table.insert(parent, { parts[1], submenu })
    end
    
-   return parse_pass_tree(menu, passlist, root)
+   return parse_pass_tree(parent, passlist, root)
 end
 -- }}}
 
@@ -162,17 +159,15 @@ end
 -- Build the pass menu based on the given output in stdout
 ----------------------------------------------------------------------
 function pass:build_pass_menu (stdout, stderr, exit_reason, exit_code)
-   self._menu = radical.context{}
-   self._menu:add_item{ text = "New ..."}   
-
+   self._menu_tbl = {{ "Generate... ", function() self:generate_pass() end},
+                     {}}
    local passlist = gstring.lines(stdout)
 
    -- The first line of the tree output is the root directory
-   local passroot = table.remove(passlist, 1)
-   
-   parse_pass_tree(self._menu, passlist, passroot)
-   self._menu.parent_geometry = rawget(self, "widget_geo")
-   self._menu.visible = true
+   local passroot = table.remove(passlist, 1)   
+   self._menu_tbl = parse_pass_tree(self._menu_tbl, passlist, passroot)
+   self._menu = awful.menu({items = self._menu_tbl })
+   self._menu:show()
 end
 -- }}}
 
