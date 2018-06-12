@@ -32,7 +32,7 @@ local awful        = require('awful'       )
 local gtable       = require('gears.table' )
 local gstring      = require('gears.string')
 local beautiful    = require('beautiful'   )
-local radical      = require('radical'     )
+local naughty      = require('naughty'     )
 -- }}}
 
 local pass = {}
@@ -89,7 +89,7 @@ end
 
 -- }}}
 
---- bat:fit -- {{{
+--- self:fit -- {{{
 ----------------------------------------------------------------------
 -- 
 ----------------------------------------------------------------------
@@ -98,7 +98,7 @@ function pass:fit (ctx, width, height)
 end
 -- }}}
 
---- bat:draw -- {{{
+--- self:draw -- {{{
 ----------------------------------------------------------------------
 -- Draw the pass widget
 ----------------------------------------------------------------------
@@ -125,11 +125,11 @@ function pass:draw (w, cr, width, height)
 end
 -- }}}
 
---- parse_pass_tree -- {{{
+--- self:parse_pass_tree -- {{{
 ----------------------------------------------------------------------
 -- 
 ----------------------------------------------------------------------
-function parse_pass_tree (parent, passlist, root)
+function pass:parse_pass_tree (parent, passlist, root)
    local i,v = next(passlist)
       
    -- if the next pass entry is blank return
@@ -144,13 +144,15 @@ function parse_pass_tree (parent, passlist, root)
    local parts = gstring.split(v:sub(#root + 2),"/")
    
    if #parts == 1 then
-      table.insert(parent, { gstring.split(parts[1], "%.")[1] })
+      local full_pass_name = root .. "/" .. parts[1]
+      table.insert(parent, { gstring.split(parts[1], "%.")[1],
+                             self:build_pass_show_fn(full_pass_name:sub(#self.pass_store + 2, -5))})
    else
-      local submenu = parse_pass_tree({}, passlist, root .. "/" .. parts[1])
+      local submenu = self:parse_pass_tree({}, passlist, root .. "/" .. parts[1])
       table.insert(parent, { parts[1], submenu })
    end
    
-   return parse_pass_tree(parent, passlist, root)
+   return self:parse_pass_tree(parent, passlist, root)
 end
 -- }}}
 
@@ -165,9 +167,58 @@ function pass:build_pass_menu (stdout, stderr, exit_reason, exit_code)
 
    -- The first line of the tree output is the root directory
    local passroot = table.remove(passlist, 1)   
-   self._menu_tbl = parse_pass_tree(self._menu_tbl, passlist, passroot)
+   self._menu_tbl = self:parse_pass_tree(self._menu_tbl, passlist, passroot)
    self._menu = awful.menu({items = self._menu_tbl })
    self._menu:show()
+end
+-- }}}
+
+--- pass:build_pass_show_fn -- {{{
+----------------------------------------------------------------------
+-- Return a function that calls pass show `pass-name'
+----------------------------------------------------------------------
+function pass:build_pass_show_fn (pass_name)
+   return function ()
+      awful.spawn.easy_async(self.pass_cmd .. " show " .. self.pass_show_args ..
+                          " " .. pass_name, self.pass_show_callback)
+   end
+end
+-- }}}
+
+--- pass:generate_pass -- {{{
+----------------------------------------------------------------------
+-- Generate a new entry in the password store
+----------------------------------------------------------------------
+function pass:generate_pass ()
+   return function ()
+      self.prompt = true
+      awful.prompt.run {
+         prompt = '<b> New Password: </b>',
+         exe_callback = function () 
+            awful.spawn.easy_async(self.pass_cmd .. " generate " .. self.pass_gen_args ..
+                                      " " .. pass_name, self.pass_gen_callback)
+         end,
+         textbox = self.prompt
+      }
+   end
+end
+-- }}}
+
+--- pass_show_callback -- {{{
+----------------------------------------------------------------------
+-- 
+----------------------------------------------------------------------
+function pass.pass_show_callback (stdout, stderr, exitreason, exitcode)
+   naughty.notify({ text = (exitcode == 0) and stdout or stderr })
+end
+-- }}}
+
+--- pass_gen_callback -- {{{
+----------------------------------------------------------------------
+-- 
+----------------------------------------------------------------------
+function pass.pass_gen_callback (stdout, stderr, exitreason, exitcode)
+   naughty.notify({ text = (exitcode == 0) and stdout or stderr })
 end
 -- }}}
 
@@ -199,13 +250,16 @@ local function new (args)
 
    local args = args or {}
 
-   obj.pass_store     = args.pass_store or "/home/" .. os.getenv("USER") ..
-      "/.password-store"
-   obj.tree_cmd       = "/usr/bin/tree"
-   obj.tree_cmd_args  = "--noreport -F -i -f"
-   obj.pass_cmd       = "/usr/bin/pass"
-   obj.pass_show_args = "-c"
-   obj.pass_gen_len   = 16
+   obj.pass_store     = args.pass_store    or "/home/" .. os.getenv("USER") ..
+                                              "/.password-store"
+   obj.tree_cmd       = args.tree_cmd      or "/usr/bin/tree"
+   obj.tree_cmd_args  = args.tree_cmd_args or "--noreport -F -i -f"
+   obj.pass_cmd       = args.pass_cmd      or "/usr/bin/pass"
+   obj.pass_show_args = args.pass_gen_args or "-c"
+   obj.pass_gen_args  = args.pass_gen_args or "16 -c"
+   obj.prompt         = wibox.widget.textbox()
+
+   obj.prompt.visible = false
    obj:buttons(gtable.join(awful.button({}, 1,
                               function () obj:toggle_menu() end)))
 
