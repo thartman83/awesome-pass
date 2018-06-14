@@ -198,6 +198,7 @@ function pass:build_pass_menu (stdout, stderr, exit_reason, exit_code)
    self._menu_tbl = self:parse_pass_tree(self._menu_tbl, passlist, passroot)
    self._menu = awful.menu({items = self._menu_tbl })
    self._menu:show()
+   self._menu.visible = true
 end
 -- }}}
 
@@ -274,6 +275,7 @@ end
 function pass:toggle_menu ()
    if self._menu ~= nil and self._menu.visible then
       self._menu:hide()
+      self._menu.visible = false
    else 
       awful.spawn.easy_async(self.tree_cmd .. " " .. self.tree_cmd_args ..
                                 " " .. self.pass_store,
