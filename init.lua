@@ -33,6 +33,7 @@ local gtable       = require('gears.table' )
 local gstring      = require('gears.string')
 local beautiful    = require('beautiful'   )
 local naughty      = require('naughty'     )
+local dpi          = require('beautiful'   ).xresources.apply_dpi
 -- }}}
 
 local pass = {}
@@ -189,7 +190,36 @@ end
 -- @return nothing
 ----------------------------------------------------------------------
 function pass:build_pass_menu (stdout, stderr, exit_reason, exit_code)
-   self._menu_tbl = {{ "Generate... ", function() self:generate_pass() end},
+   local gen_pass_prompt_fn =   
+      function (parent, args)
+         local layout = wibox.layout.align.horizontal()
+         local margin = wibox.container.margin()
+         margin:set_left(dpi(18))
+         margin:set_widget(self.prompt)
+         layout:connect_signal("mouse::enter", function ()
+                                  awful.prompt.run {
+                                     prompt  = 'New: ',
+                                     textbox = self.prompt,
+                                     exe_callback = function (pass_name)
+                                        if pass_name ~= "" then
+                                           self:generate_pass(pass_name)
+                                        end
+                                        self._menu:hide()
+                                     end                                     
+                                  }
+                                end)
+
+         layout:set_left(margin)
+         
+         local ret = { widget = layout,
+                       cmd = {},
+                       akey    = 'pass_generator',
+         }         
+
+         return ret
+      end
+   
+   self._menu_tbl = {{ "Generate", { { new = gen_pass_prompt_fn } } },
                      {}}
    local passlist = gstring.lines(stdout)
 
@@ -218,20 +248,6 @@ function pass:build_pass_show_fn (pass_name)
 end
 -- }}}
 
---- pass:generate_pass -- {{{
-----------------------------------------------------------------------
--- Generate a new entry in the password store.
--- TODO: Write this function
---
--- @return nothing
-----------------------------------------------------------------------
-function pass:generate_pass ()
-   return function ()
-      self._gen_prompt.show()
-   end
-end
--- }}}
-
 --- pass_show_callback -- {{{
 ----------------------------------------------------------------------
 -- Callback function to handle the output from a `pass show {pass-name}'
@@ -245,6 +261,37 @@ end
 -- @return nothing
 ----------------------------------------------------------------------
 function pass.pass_show_callback (stdout, stderr, exitreason, exitcode)
+   naughty.notify({ text = (exitcode == 0) and stdout or stderr })
+end
+-- }}}
+
+--- pass:generate_pass -- {{{
+----------------------------------------------------------------------
+-- Generate a new entry in the password store.
+--
+-- @param pass_name name of the password to generate
+-- @return nothing
+----------------------------------------------------------------------
+function pass:generate_pass (pass_name)
+   awful.spawn.easy_async(self.pass_cmd .. " generate " .. self.pass_gen_args ..
+                             " " .. pass_name .. " " .. self.pass_gen_len,
+                          self.pass_gen_callback)
+end
+-- }}}
+
+--- pass.pass_gen_callback -- {{{
+----------------------------------------------------------------------
+-- Callback function to handle the output from a `pass gen
+-- {pass-name}' asyncronous call. This function displays the output in
+-- a naughty popup and otherwise is a noop
+--
+-- @param stdout The standard output from the `pass show {pass-name}' call
+-- @param stderr The standard error from the `pass show {pass-name}' call
+-- @param exitreason The exit reason (signal or exit)
+-- @param exitcode The exit code from the `pass show {pass-name}' call
+-- @return nothing
+----------------------------------------------------------------------
+function pass.pass_gen_callback (stdout, stderr, exitreason, exitcode)
    naughty.notify({ text = (exitcode == 0) and stdout or stderr })
 end
 -- }}}
@@ -312,10 +359,10 @@ local function new (args)
    obj.tree_cmd_args  = args.tree_cmd_args or "--noreport -F -i -f"
    obj.pass_cmd       = args.pass_cmd      or "/usr/bin/pass"
    obj.pass_show_args = args.pass_gen_args or "-c"
-   obj.pass_gen_args  = args.pass_gen_args or "16 -c"
-   obj.prompt         = wibox.widget.textbox()
+   obj.pass_gen_args  = args.pass_gen_args or "-c"
+   obj.pass_gen_len   = args.pass_gen_len  or 16
+   obj.prompt         = wibox.widget.textbox("New: ")
 
-   obj.prompt.visible = false
    obj:buttons(gtable.join(awful.button({}, 1,
                               function () obj:toggle_menu() end)))
 
