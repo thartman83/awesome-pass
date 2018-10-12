@@ -97,12 +97,11 @@ end
 -- @param ctx Cairo context
 -- @param width the hinted width
 -- @param height the hinted height
--- @return the desired width and height, where width is width of 3
--- characters in the current font and size and height is the hinted
--- height passed into the function
+-- @return the desired width and height, where width is equal to half
+-- the height of the bounding wibar
 ----------------------------------------------------------------------
 function pass:fit (ctx, width, height)
-   return self._width, height
+   return height, height
 end
 -- }}}
 
@@ -116,25 +115,41 @@ end
 -- @param height height of the space to draw
 ----------------------------------------------------------------------
 function pass:draw (w, cr, width, height)
+   cr:save()
    cr:set_source(color(self._color or beautiful.fg_normal))
 
-   cr.line_width = 1
+   cr.line_width = w.line_width or 1
 
+   -- vertically align the pass glyph
+   local layout = pango.Layout.new(pangocairo.font_map_get_default():create_context())
+   layout:set_font_description(beautiful.get_font(beautiful and beautiful.font))
+   layout.text = "F"
+   
+   local h = layout:get_pixel_extents().height -- Born to be down
+   
+   local offset = (height - h) / 2
+   local xpad = 2
+   
+   r = width / 6
    -- key eye
-   cr:arc(width * .5 + .5,     height * .4,
-          width * .3     ,     0,
-          2 * math.pi)
-   
-   -- key shaft
-   cr:move_to(width * .5, height * .5)
-   cr:line_to(width * .5, height * .8)
-
-   -- key teeth
-   cr:line_to(width * .95, height * .8)
-   cr:move_to(width * .5, height * .65)
-   cr:line_to(width * .95, height * .65)
-   
+   cr:arc(xpad + r, height / 2, r, 0, 2 * math.pi)
    cr:stroke()
+
+   -- key shaft
+   cr:move_to(xpad + (r * 2), height / 2)
+   cr:line_to(width - xpad, height / 2)   
+   cr:stroke()
+
+   -- key teeth   
+   cr:move_to(width - xpad, height / 2)
+   cr:line_to(width - xpad, (height / 2) + r)
+   cr:stroke()
+
+   cr:move_to(width - xpad * 2, height / 2)
+   cr:line_to(width - xpad * 2, height / 2 + r)
+   cr:stroke()
+   
+   cr:restore()
 end
 -- }}}
 
@@ -364,12 +379,9 @@ local function new (args)
    obj.prompt         = wibox.widget.textbox("New: ")
 
    obj:buttons(gtable.join(awful.button({}, 1,
-                              function () obj:toggle_menu() end)))
-
-   local pl = pango.Layout.new(pangocairo.font_map_get_default():create_context())
-   pl:set_font_description(beautiful.get_font(beautiful and beautiful.font))
-   pl.text = " H "
-   obj._width = pl:get_pixel_extents().width
+                              function ()
+                                 print("toggling menu")
+                                 obj:toggle_menu() end)))
 
    return obj
 end
