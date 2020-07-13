@@ -258,25 +258,11 @@ end
 function pass:build_pass_show_fn (pass_name)
    return function ()
       awful.spawn.easy_async(self.pass_cmd .. " show " .. self.pass_show_args ..
-                          " " .. pass_name, self.pass_show_callback)
+                                " " .. pass_name,
+          function (so, se, er, ec)
+             naughty.notify({ text = (exitcode == 0) and stdout or stderr })
+      end)
    end
-end
--- }}}
-
---- pass_show_callback -- {{{
-----------------------------------------------------------------------
--- Callback function to handle the output from a `pass show {pass-name}'
--- asyncronous call. This function displays the output in a naughty
--- popup and otherwise is a nop.
---
--- @param stdout The standard output from the `pass show {pass-name}' call
--- @param stderr The standard error from the `pass show {pass-name}' call
--- @param exitreason The exit reason (signal or exit)
--- @param exitcode The exit code from the `pass show {pass-name}' call
--- @return nothing
-----------------------------------------------------------------------
-function pass.pass_show_callback (stdout, stderr, exitreason, exitcode)
-   naughty.notify({ text = (exitcode == 0) and stdout or stderr })
 end
 -- }}}
 
